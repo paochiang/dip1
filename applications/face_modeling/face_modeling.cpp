@@ -62,8 +62,8 @@ using namespace dip;
 int depth_width = 640;
 int depth_height = 480;
 #else
-int depth_width = 960;// 512;
-int depth_height = 540;// 424;
+int depth_width = 512;////960;// 512;
+int depth_height = 424;// 540;// 424;
 #endif
 int color_width = 1920;
 int color_height = 1080;
@@ -269,10 +269,10 @@ loop:
   libfreenect2::Freenect2Device::ColorCameraParams color_intri = libfree.getColorCameraParams();
   FaceModeling *modeling = new FaceModeling(
 	  depth_width, depth_height,
-	  //368.114, 368.114,
-	  //258.342, 203.319);
-	  depth_width/(color_width / color_intri.fx), depth_height/(color_height / color_intri.fy),
-	  depth_width/2, depth_height/2);
+	  368.114, 368.114,
+	  258.342, 203.319);
+	  //depth_width/(color_width / color_intri.fx), depth_height/(color_height / color_intri.fy),
+	  //depth_width/2, depth_height/2);
   // Initialize Buffers
   Depth *depth = new Depth[depth_width * depth_height];
   Color *color = new Color[color_width * color_height];
@@ -295,10 +295,10 @@ loop:
 	  ofs << "fy: " << color_intri.fy << endl;
 	  ofs << "px: " << color_intri.cx << endl;
 	  ofs << "py: " << color_intri.cy << endl;
-	  ofs << "fx2:" << depth_width / (color_width / color_intri.fx) << endl;
-	  ofs << "fy2:" << depth_height / (color_height / color_intri.fy) << endl;
-	  ofs << "px2: " << depth_width/2 << endl;
-	  ofs << "py2: " << depth_height/2 << endl;
+	  //ofs << "fx2:" << depth_width / (color_width / color_intri.fx) << endl;
+	  //ofs << "fy2:" << depth_height / (color_height / color_intri.fy) << endl;
+	  //ofs << "px2: " << depth_width/2 << endl;
+	  //ofs << "py2: " << depth_height/2 << endl;
 	  //cout << "width/fx: " << color_width / color_intri.fx << ", height/fy:" << color_height / color_intri.fy << endl;
 	  ofs.close();
   }
@@ -435,8 +435,8 @@ loop:
 	  cv::Mat depth_img_16U = cv::Mat::zeros(depth_height, depth_width, CV_16UC1);
 	  cv::Mat color_align_depth_img;
 	  libfree.getRGBMat().copyTo(color_img);
-	  //libfree.getDepthMat().copyTo(depth_img);
-	  cv::resize(libfree.getDepth2RGB(), depth_img, cv::Size(depth_width, depth_height));
+	  libfree.getDepthMat().copyTo(depth_img);
+	 // cv::resize(libfree.getDepth2RGB(), depth_img, cv::Size(depth_width, depth_height));
 	  libfree.getRGB2Depth().copyTo(color_align_depth_img);
 	  for (int y = 0; y < depth_height; y++)
 		  for (int x = 0; x < depth_width; x++)
@@ -471,7 +471,7 @@ loop:
 		  compression_params.push_back(CV_IMWRITE_PNG_COMPRESSION);
 		  compression_params.push_back(0);    // ÎÞÑ¹Ëõpng.
 		  cv::imwrite("./color0.png", color_img, compression_params);
-		  //cv::imwrite("./depth_raw0.png", depth_img_16U, compression_params);
+		  cv::imwrite("./depth_raw0.png", depth_img_16U, compression_params);
 #ifdef REALSENSE
 		  cv::imwrite("./color_align_depth0.png", color_align_depth_img, compression_params);
 		  cv::imwrite("./color_align_depth_undistortion0.png", color_align_depth_undistortion_img, compression_params);
@@ -490,7 +490,7 @@ loop:
 		  }
 #endif
 #ifdef KINECT2
-		  //cv::imwrite("./color_align_depth0.png", color_align_depth_img, compression_params);
+		  cv::imwrite("./color_align_depth0.png", color_align_depth_img, compression_params);
 		  ofstream ofs;
 		  ofs.open(parameterFileName, ios::app);
 		  if (ofs.is_open()) {
@@ -566,7 +566,7 @@ loop:
 		compression_params.push_back(CV_IMWRITE_PNG_COMPRESSION);
 		compression_params.push_back(0);    // ÎÞÑ¹Ëõpng.
 		cv::imwrite("./color" + out + ".png", color_img, compression_params);
-		//cv::imwrite("./depth_raw" + out + ".png", depth_img_16U, compression_params);
+		cv::imwrite("./depth_raw" + out + ".png", depth_img_16U, compression_params);
 #ifdef REALSENSE		
 		cv::imwrite("./color_align_depth_undistortion" + out + ".png", color_align_depth_undistortion_img, compression_params);		
 		cv::imwrite("./depth_undistortion" + out + ".png", depth_undistortion_img, compression_params);
@@ -583,7 +583,7 @@ loop:
 		}
 #endif
 #ifdef KINECT2
-		//cv::imwrite("./color_align_depth" + out + ".png", color_align_depth_img, compression_params);
+		cv::imwrite("./color_align_depth" + out + ".png", color_align_depth_img, compression_params);
 		ofstream ofs;
 		ofs.open(parameterFileName, ios::app);
 		if (ofs.is_open()) {
