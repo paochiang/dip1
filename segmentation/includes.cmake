@@ -1,0 +1,4 @@
+set(INCLUDE_DIRS
+    ${INCLUDE_DIRS}
+    ${OpenCV_INCLUDE_DIRS}
+    )

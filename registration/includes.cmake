@@ -1,0 +1,4 @@
+set(INCLUDE_DIRS
+    ${INCLUDE_DIRS}
+    ${EIGEN_INCLUDE_DIRS}
+    )
