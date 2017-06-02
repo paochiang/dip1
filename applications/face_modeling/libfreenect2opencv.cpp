@@ -18,8 +18,7 @@
 using namespace std;
 
 namespace libfreenect2opencv {
-
-
+	
 	Libfreenect2OpenCV::Libfreenect2OpenCV() :
 		m_pipeline(nullptr),
 		m_dev(nullptr),
@@ -89,7 +88,8 @@ namespace libfreenect2opencv {
 #else
 			m_registration->apply(rgb, depth, &undistorted, &registered);
 #endif
-			cv::Mat(undistorted.height, undistorted.width, CV_32FC1, undistorted.data).copyTo(m_depthMatUndistorted);
+			cv::Mat tmpUndisDepth(undistorted.height, undistorted.width, CV_32FC1, undistorted.data);
+			cv::flip(tmpUndisDepth, m_depthMatUndistorted, 1);
 			cv::Mat tmpRGB2Depth(registered.height, registered.width, CV_8UC4, registered.data);
 			cv::flip(tmpRGB2Depth, m_rgb2depthMat, 1);
 #ifdef DEPTHTORGB

@@ -51,11 +51,13 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <iostream>
 #include "rs.hpp"
 #include "libfreenect2opencv.h"
+#include "KinectCollection.h"
 
 
 //#define KINECT
 #define KINECT2
 //#define REALSENSE
+//#define LIBFREE
 
 using namespace dip;
 #ifndef KINECT2
@@ -227,7 +229,11 @@ int main(int argc, char **argv) {
   }
 #endif
 #ifdef KINECT2
+#ifdef LIBFREE
   libfreenect2opencv::Libfreenect2OpenCV libfree;
+#else
+  KinectCollection kc;
+#endif
 #endif
   int mes_count = 0;
 loop:
@@ -266,18 +272,19 @@ loop:
   Color *normals = new Color[depth_width * depth_height];
 #endif
 #ifdef KINECT2
-  libfreenect2::Freenect2Device::ColorCameraParams color_intri = libfree.getColorCameraParams();
   FaceModeling *modeling = new FaceModeling(
 	  depth_width, depth_height,
 	  368.114, 368.114,
-	  258.342, 203.319);
-	  //depth_width/(color_width / color_intri.fx), depth_height/(color_height / color_intri.fy),
-	  //depth_width/2, depth_height/2);
+	  255.5, 211.5);
+  //depth_width/(color_width / color_intri.fx), depth_height/(color_height / color_intri.fy),
+  //depth_width/2, depth_height/2);
   // Initialize Buffers
   Depth *depth = new Depth[depth_width * depth_height];
   Color *color = new Color[color_width * color_height];
   Color *colorized_depth = new Color[depth_width * depth_height];
   Color *normals = new Color[depth_width * depth_height];
+#ifdef LIBFREE
+  libfreenect2::Freenect2Device::ColorCameraParams color_intri = libfree.getColorCameraParams();
   string parameterFileName = "./parameter.txt";
   ofstream ofs;
   ofs.open(parameterFileName);
@@ -302,6 +309,21 @@ loop:
 	  //cout << "width/fx: " << color_width / color_intri.fx << ", height/fy:" << color_height / color_intri.fy << endl;
 	  ofs.close();
   }
+#else
+  kc.init(0);
+  kc.start();
+  string parameterFileName = "./parameter.txt";
+  ofstream ofs;
+  ofs.open(parameterFileName);
+  if (ofs.is_open()) {
+	  ofs << "depth camera parameter:" << endl;
+	  ofs << "fx: " << 368.114 << endl;
+	  ofs << "fy: " << 368.114 << endl;
+	  ofs << "px: " << 255.5 << endl;
+	  ofs << "py: " << 211.5 << endl;
+	  ofs.close();
+  }
+#endif
 #endif
   /*GLFW part*/
   //// Initialize GLFW
@@ -429,13 +451,15 @@ loop:
 		  }
 #endif
 #ifdef KINECT2
+#ifdef LIBFREE
 	  libfree.updateMat();
 	  cv::Mat color_img;
 	  cv::Mat depth_img;
 	  cv::Mat depth_img_16U = cv::Mat::zeros(depth_height, depth_width, CV_16UC1);
 	  cv::Mat color_align_depth_img;
 	  libfree.getRGBMat().copyTo(color_img);
-	  libfree.getDepthMat().copyTo(depth_img);
+	  libfree.getDepthMatUndistorted().copyTo(depth_img);
+	  //libfree.getDepthMat().copyTo(depth_img);
 	 // cv::resize(libfree.getDepth2RGB(), depth_img, cv::Size(depth_width, depth_height));
 	  libfree.getRGB2Depth().copyTo(color_align_depth_img);
 	  for (int y = 0; y < depth_height; y++)
@@ -458,6 +482,31 @@ loop:
 			  color[index].g = color_img.at<cv::Vec3b>(y, x)[1];
 			  color[index].r = color_img.at<cv::Vec3b>(y, x)[2];
 		  }
+#else
+	  kc.update();
+	  if (kc.getDepthMat().data==NULL || kc.getColorMat().data == NULL)
+		  continue;
+	  cv::Mat color_img;
+	  cv::Mat depth_img_16U;
+	  cv::Mat color_align_depth_img;
+	  kc.getColorMat().copyTo(color_img);
+	  kc.getDepthWithColorMat().copyTo(color_align_depth_img);
+	  kc.getDepthMat().copyTo(depth_img_16U);
+	  for (int y = 0; y < depth_height; y++)
+		  for (int x = 0; x < depth_width; x++)
+		  {
+			  int index = y * depth_width + x;
+			  depth[index] = depth_img_16U.at<unsigned short>(y, x);
+		  }
+	  for (int y = 0; y < color_height; y++)
+		  for (int x = 0; x < color_width; x++)
+		  {
+			  int index = y * color_width + x;
+			  color[index].b = color_img.at<cv::Vec4b>(y, x)[0];
+			  color[index].g = color_img.at<cv::Vec4b>(y, x)[1];
+			  color[index].r = color_img.at<cv::Vec4b>(y, x)[2];
+		  }
+#endif
 #endif
 	  //// Update Model
 	  Eigen::Matrix4f transform, global_to_camera;
@@ -465,7 +514,7 @@ loop:
 	  global_to_camera = transform.inverse();
 #ifdef RUNMODEL
 	  if (!flag && (rrr == 0)) {
-		  cout << "mark first color image" << endl;
+		  std::cout << "mark first frame images" << std::endl;
 		  //color_img.copyTo(firtFrameColor);
 		  std::vector<int> compression_params;
 		  compression_params.push_back(CV_IMWRITE_PNG_COMPRESSION);
@@ -491,6 +540,7 @@ loop:
 #endif
 #ifdef KINECT2
 		  cv::imwrite("./color_align_depth0.png", color_align_depth_img, compression_params);
+		  cv::imwrite("./color_to_depth_map0.png", kc.getColorToDepthMapMat(), compression_params);
 		  ofstream ofs;
 		  ofs.open(parameterFileName, ios::app);
 		  if (ofs.is_open()) {
@@ -501,6 +551,9 @@ loop:
 			  ofs << global_to_camera(3, 0) << " " << global_to_camera(3, 1) << " " << global_to_camera(3, 2) << " " << global_to_camera(3, 3) << endl << endl;
 			  ofs.close();
 		  }
+		  //ofs.open("./colordepthmap.txt");
+		  //ofs << kc.getColorToDepthMapMat() << endl;
+		  //ofs.close();
 #endif
 		  flag = true;
 	  }
@@ -552,12 +605,12 @@ loop:
 	  cv::moveWindow("model", 600 + depth_width + 10, 60);
 	  int res = cv::waitKey(1);
 	if (res == 32) {
-		//OBJFile obj_file(argv[1], CREATE_OBJ);
-		//if (obj_file.enabled()) {
-		//	Mesh mesh;
-		//	modeling->Model(&mesh);
-		//	obj_file.Write(&mesh);
-		//}
+		OBJFile obj_file(argv[1], CREATE_OBJ);
+		if (obj_file.enabled()) {
+			Mesh mesh;
+			modeling->Model(&mesh);
+			obj_file.Write(&mesh);
+		}
 		stringstream ss;
 		ss << count_ << endl;
 		string out;
@@ -584,6 +637,7 @@ loop:
 #endif
 #ifdef KINECT2
 		cv::imwrite("./color_align_depth" + out + ".png", color_align_depth_img, compression_params);
+		cv::imwrite("./color_to_depth_map" + out + ".png", kc.getColorToDepthMapMat(), compression_params);
 		ofstream ofs;
 		ofs.open(parameterFileName, ios::app);
 		if (ofs.is_open()) {
@@ -591,11 +645,10 @@ loop:
 			ofs << global_to_camera(0, 0) << " " << global_to_camera(0, 1) << " " << global_to_camera(0, 2) << " " << global_to_camera(0, 3) << endl;
 			ofs << global_to_camera(1, 0) << " " << global_to_camera(1, 1) << " " << global_to_camera(1, 2) << " " << global_to_camera(1, 3) << endl;
 			ofs << global_to_camera(2, 0) << " " << global_to_camera(2, 1) << " " << global_to_camera(2, 2) << " " << global_to_camera(2, 3) << endl;
-			ofs << global_to_camera(3, 0) << " " << global_to_camera(3, 1) << " " << global_to_camera(3, 2) << " " << global_to_camera(3, 3) << endl << endl;
+			ofs << global_to_camera(3, 0) << " " << global_to_camera(3, 1) << " " << global_to_camera(3, 2) << " " << global_to_camera(3, 3) << endl;
 			ofs.close();
 		}
 #endif
-		/*out put data*/
 		//cv::imwrite("./depth_" + out + ".png", depth_img, compression_params);
 		//std::vector<cv::Point3f> points3d = ImageToSpace(depth_img, focal.x, focal.y, pxy.x, pxy.y);
 		//SaveCloud(points3d, "./cloud_depth" + out + ".ply");
