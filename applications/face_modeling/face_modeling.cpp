@@ -307,19 +307,19 @@ loop:
   ofs.open(parameterFileName);
   if (ofs.is_open()) {
 	  ofs << "depth camera parameter:" << endl;
-	  ofs << "fx: " << 368.114 << endl;//kc.fx() << endl;
-	  ofs << "fy: " << 368.114 << endl;// kc.fy() << endl;
-	  ofs << "px: " << 258.342 << endl;// kc.cx() << endl;
-	  ofs << "py: " << 203.319 << endl;// kc.cy() << endl;
+	  ofs << "fx: " << kc.fx() << endl;
+	  ofs << "fy: " <<  kc.fy() << endl;
+	  ofs << "px: " <<  kc.cx() << endl;
+	  ofs << "py: " <<  kc.cy() << endl;
 	  ofs.close();
   }
 #endif
   FaceModeling *modeling = new FaceModeling(
 	  depth_width, depth_height,
-	  //kc.fx(), kc.fy(),
-	  //kc.cx(), kc.cy());
-	  368.114, 368.114,
-	  258.342, 203.319);
+	  kc.fx(), kc.fy(),
+	  kc.cx(), kc.cy());
+	  //368.114, 368.114,
+	  //258.342, 203.319);
   //depth_width/(color_width / color_intri.fx), depth_height/(color_height / color_intri.fy),
   //depth_width/2, depth_height/2);
   // Initialize Buffers

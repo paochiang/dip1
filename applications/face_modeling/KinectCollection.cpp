@@ -62,7 +62,7 @@ bool KinectCollection::start()
 	{
 		is_collction_ = true;
 	}
-	//while (!checkCoordinateChange());
+	while (!checkCoordinateChange());
 	CameraIntrinsics intrinsics = {};
 	coordinate_mapper_->GetDepthCameraIntrinsics(&intrinsics);
 	fx_ = intrinsics.FocalLengthX;
@@ -83,127 +83,127 @@ void KinectCollection::stop()
 
 void KinectCollection::update()
 {
-	if (is_collction_) {
-		updateColor();
-		updateDepth();
-		updateMap();
-		mapColorToDepth();
-	}
-
-	////clock_t s1, s2;
-	//if (is_collction_ )
-	//{
-	//	IDepthFrameReference* m_pDepthFrameReference = NULL;
-	//	IColorFrameReference* m_pColorFrameReference = NULL;
-	//	IDepthFrame* pDepthFrame = NULL;
-	//	IColorFrame* pColorFrame = NULL;
-	//	IMultiSourceFrame* pMultiFrame = nullptr;
-	//	HRESULT hr = m_pMultiFrameReader->AcquireLatestFrame(&pMultiFrame);
-	//	if (SUCCEEDED(hr)) {
-	//		if (SUCCEEDED(hr))
-	//			hr = pMultiFrame->get_ColorFrameReference(&m_pColorFrameReference);
-	//		if (SUCCEEDED(hr))
-	//			hr = m_pColorFrameReference->AcquireFrame(&pColorFrame);
-	//		if (SUCCEEDED(hr))
-	//			hr = pMultiFrame->get_DepthFrameReference(&m_pDepthFrameReference);
-	//		if (SUCCEEDED(hr))
-	//			hr = m_pDepthFrameReference->AcquireFrame(&pDepthFrame);
-	//		if (SUCCEEDED(hr)) {
-	//			//acquire color image
-	//			color_mat_ = cv::Mat::zeros(color_height_, color_width_, CV_8UC4);
-	//			int nBufferSize = color_width_ * color_height_ * 4;
-	//			hr = pColorFrame->CopyConvertedFrameDataToArray(nBufferSize, reinterpret_cast<BYTE*>(color_mat_.data), ColorImageFormat_Bgra);
-	//		}	
-	//		//update depth image
-	//		if (SUCCEEDED(hr))
-	//		{
-	//			//hr = pDepthFrame->AccessUnderlyingBuffer(&nDepthBufferSize, &pBuffer); 
-	//			depth_mat_ = cv::Mat::zeros(depth_height_, depth_width_, CV_16UC1);
-	//			hr = pDepthFrame->CopyFrameDataToArray(depth_height_ * depth_width_, reinterpret_cast<UINT16*>(depth_mat_.data));
-	//		}
-	//		if (SUCCEEDED(hr)) {
-	//			updateMap();
-	//			mapColorToDepth();
-	//		}
-	//	}
-	//	SafeReleaseObj(pDepthFrame);
-	//	SafeReleaseObj(pColorFrame);
-	//	SafeReleaseObj(m_pColorFrameReference);
-	//	SafeReleaseObj(m_pDepthFrameReference);
-	//	SafeReleaseObj(pMultiFrame);
+	//if (is_collction_) {
+	//	updateColor();
+	//	updateDepth();
+	//	updateMap();
+	//	mapColorToDepth();
 	//}
+
+	//clock_t s1, s2;
+	if (is_collction_ )
+	{
+		IDepthFrameReference* m_pDepthFrameReference = NULL;
+		IColorFrameReference* m_pColorFrameReference = NULL;
+		IDepthFrame* pDepthFrame = NULL;
+		IColorFrame* pColorFrame = NULL;
+		IMultiSourceFrame* pMultiFrame = nullptr;
+		HRESULT hr = m_pMultiFrameReader->AcquireLatestFrame(&pMultiFrame);
+		if (SUCCEEDED(hr)) {
+			if (SUCCEEDED(hr))
+				hr = pMultiFrame->get_ColorFrameReference(&m_pColorFrameReference);
+			if (SUCCEEDED(hr))
+				hr = m_pColorFrameReference->AcquireFrame(&pColorFrame);
+			if (SUCCEEDED(hr))
+				hr = pMultiFrame->get_DepthFrameReference(&m_pDepthFrameReference);
+			if (SUCCEEDED(hr))
+				hr = m_pDepthFrameReference->AcquireFrame(&pDepthFrame);
+			if (SUCCEEDED(hr)) {
+				//acquire color image
+				color_mat_ = cv::Mat::zeros(color_height_, color_width_, CV_8UC4);
+				int nBufferSize = color_width_ * color_height_ * 4;
+				hr = pColorFrame->CopyConvertedFrameDataToArray(nBufferSize, reinterpret_cast<BYTE*>(color_mat_.data), ColorImageFormat_Bgra);
+			}	
+			//update depth image
+			if (SUCCEEDED(hr))
+			{
+				//hr = pDepthFrame->AccessUnderlyingBuffer(&nDepthBufferSize, &pBuffer); 
+				depth_mat_ = cv::Mat::zeros(depth_height_, depth_width_, CV_16UC1);
+				hr = pDepthFrame->CopyFrameDataToArray(depth_height_ * depth_width_, reinterpret_cast<UINT16*>(depth_mat_.data));
+			}
+			if (SUCCEEDED(hr)) {
+				updateMap();
+				mapColorToDepth();
+			}
+		}
+		SafeReleaseObj(pDepthFrame);
+		SafeReleaseObj(pColorFrame);
+		SafeReleaseObj(m_pColorFrameReference);
+		SafeReleaseObj(m_pDepthFrameReference);
+		SafeReleaseObj(pMultiFrame);
+	}
 
 }
 
 bool KinectCollection::initSensor()
 {
-	uninitSensor();
-	HRESULT hr;
-	hr = GetDefaultKinectSensor(&kinect_sensor_);
-	if (FAILED(hr))
-	{
-		return false;
-	}
-	if (kinect_sensor_)
-	{
-		// Initialize the Kinect and get coordinate mapper and the body reader
-		IColorFrameSource* pColorFrameSource = NULL;
-		IDepthFrameSource* pDepthFrameSource = NULL;
-		hr = kinect_sensor_->Open();
-		if (SUCCEEDED(hr))
-		{
-			hr = kinect_sensor_->get_ColorFrameSource(&pColorFrameSource);
-		}
-		if (SUCCEEDED(hr))
-		{
-			hr = pColorFrameSource->OpenReader(&color_frame_reader_);
-		}
-		if (SUCCEEDED(hr))
-		{
-			hr = kinect_sensor_->get_DepthFrameSource(&pDepthFrameSource);
-		}
-		if (SUCCEEDED(hr))
-		{
-			hr = pDepthFrameSource->OpenReader(&depth_frame_reader_);
-		}
-		if (SUCCEEDED(hr))
-		{
-			hr = kinect_sensor_->get_CoordinateMapper(&coordinate_mapper_);
-		}
-		if (!SUCCEEDED(hr)) {
-			return false;
-		}
-		SafeReleaseObj(pColorFrameSource);
-		SafeReleaseObj(pDepthFrameSource);
-	}
-	if (!kinect_sensor_ || FAILED(hr))
-	{
-		return false;
-	}
-
 	//uninitSensor();
- //   HRESULT hr;
- //   hr = GetDefaultKinectSensor(&kinect_sensor_);
- //   if (FAILED(hr))
- //   {
+	//HRESULT hr;
+	//hr = GetDefaultKinectSensor(&kinect_sensor_);
+	//if (FAILED(hr))
+	//{
 	//	return false;
- //  }
-	//if (kinect_sensor_ != NULL) {
+	//}
+	//if (kinect_sensor_)
+	//{
+	//	// Initialize the Kinect and get coordinate mapper and the body reader
+	//	IColorFrameSource* pColorFrameSource = NULL;
+	//	IDepthFrameSource* pDepthFrameSource = NULL;
 	//	hr = kinect_sensor_->Open();
-	//	if (SUCCEEDED(hr)) {
-	//		hr = kinect_sensor_->OpenMultiSourceFrameReader(FrameSourceTypes::FrameSourceTypes_Color |
-	//			FrameSourceTypes::FrameSourceTypes_Depth, &m_pMultiFrameReader);
+	//	if (SUCCEEDED(hr))
+	//	{
+	//		hr = kinect_sensor_->get_ColorFrameSource(&pColorFrameSource);
 	//	}
 	//	if (SUCCEEDED(hr))
-	//		hr = kinect_sensor_->get_CoordinateMapper(&coordinate_mapper_);
+	//	{
+	//		hr = pColorFrameSource->OpenReader(&color_frame_reader_);
+	//	}
 	//	if (SUCCEEDED(hr))
-	//		hr = coordinate_mapper_->SubscribeCoordinateMappingChanged(&m_coordinateMappingChangedEvent);
+	//	{
+	//		hr = kinect_sensor_->get_DepthFrameSource(&pDepthFrameSource);
+	//	}
+	//	if (SUCCEEDED(hr))
+	//	{
+	//		hr = pDepthFrameSource->OpenReader(&depth_frame_reader_);
+	//	}
+	//	if (SUCCEEDED(hr))
+	//	{
+	//		hr = kinect_sensor_->get_CoordinateMapper(&coordinate_mapper_);
+	//	}
+	//	if (!SUCCEEDED(hr)) {
+	//		return false;
+	//	}
+	//	SafeReleaseObj(pColorFrameSource);
+	//	SafeReleaseObj(pDepthFrameSource);
 	//}
- //   if (!kinect_sensor_ || FAILED(hr))
- //   {
- //      return false;
- //   }
-	//return true;
+	//if (!kinect_sensor_ || FAILED(hr))
+	//{
+	//	return false;
+	//}
+
+	uninitSensor();
+    HRESULT hr;
+    hr = GetDefaultKinectSensor(&kinect_sensor_);
+    if (FAILED(hr))
+    {
+		return false;
+   }
+	if (kinect_sensor_ != NULL) {
+		hr = kinect_sensor_->Open();
+		if (SUCCEEDED(hr)) {
+			hr = kinect_sensor_->OpenMultiSourceFrameReader(FrameSourceTypes::FrameSourceTypes_Color |
+				FrameSourceTypes::FrameSourceTypes_Depth, &m_pMultiFrameReader);
+		}
+		if (SUCCEEDED(hr))
+			hr = kinect_sensor_->get_CoordinateMapper(&coordinate_mapper_);
+		if (SUCCEEDED(hr))
+			hr = coordinate_mapper_->SubscribeCoordinateMappingChanged(&m_coordinateMappingChangedEvent);
+	}
+    if (!kinect_sensor_ || FAILED(hr))
+    {
+       return false;
+    }
+	return true;
 }
 
 bool KinectCollection::uninitSensor()
