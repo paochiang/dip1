@@ -338,4 +338,197 @@ void FaceModeling::Model(Mesh *mesh) {
   delete [] volume;
 }
 
+int FaceModeling::RunICPForInitialFrame(const Depth *depth, Color *normal_map,
+                      Matrix4f *transform) {
+	// Segment the user's head from the depth image.
+	int res = head_segmentation_.Run(kMinDepth, kMaxDepth, kMaxDifference,
+		kMinHeadWidth, kMinHeadHeight,
+		kMaxHeadWidth, kMaxHeadHeight,
+		fx_, fy_, width_, height_, depth, depth_, 0);
+	// Set initial transformation estimate
+	transformation_ = Eigen::Matrix4f::Identity();
+	// Render
+	 ray_casting_.Run(kMaxDistance, kMaxTruncation, kVolumeSize, kVolumeDimension,
+                   kVoxelDimension, min_weight_, width_, height_,
+                   fx_, fy_, cx_, cy_, volume_center_, transformation_,
+                   volume_, model_vertices_, model_normals_, normal_map_);
+
+#ifdef  RUNMODEL
+	if (res == -1) {
+		// printf("Unable to segment user's head from depth image\n");
+		if (start) {
+			count_stop++;
+		}
+		else {
+			count_start = 0;
+		}
+		if (!stop && count_stop >= 18) {
+			stop = true;
+			start = false;
+			count_start = 0;
+		}
+	}
+	else
+	{
+		if (start) {
+			count_stop = 0;
+		}
+		else {
+			count_start++;
+		}
+		if (!start && count_start >= 18) {
+			printf("Start face modeling=======================================\n");
+			start = true;
+			stop = false;
+			count_stop = 0;
+		}
+	}
+
+	if (!start && !stop)
+	{
+		printf("waiting people in!\n");
+		return -1;
+	}
+	if (stop)
+	{
+		printf("\nwaiting next people======================================!\n\n");
+		stop = false;
+		start = false;
+		count_start = 0;
+		count_stop = 0;
+		return 1;
+	}
+#else	
+	return -1;
+#endif
+
+  // Upload the segmented depth image from the CPU to the GPU.
+  Upload(segmented_depth_, depth_, sizeof(Depth) * width_ * height_);
+ 
+
+  // Filter the depth image.
+  variance_filter_.Run(width_, height_, segmented_depth_, filtered_depth_);
+  bilateral_filter_.Run(kRegistrationBilateralFilterSigmaD,
+                        kRegistrationBilateralFilterSigmaR,
+                        width_, height_, filtered_depth_, denoised_depth_);
+
+  // Construct depth image pyramid.
+  Copy(depth_pyramid_[0], denoised_depth_, sizeof(Depth) * width_ * height_);
+  for (int i = 1 ; i < kPyramidLevels; i++) {
+    downsample_.Run(kDownsampleFactor, kDownsampleMaxDifference,
+                    (width_ >> ((i - 1) * kDownsampleFactor)),
+                    (height_ >> ((i - 1) * kDownsampleFactor)),
+                    (width_ >> (i * kDownsampleFactor)),
+                    (height_ >> (i * kDownsampleFactor)),
+                    depth_pyramid_[i - 1], depth_pyramid_[i]);
+  }
+
+  // Construct the point-cloud pyramid by
+  // back-projecting the depth image pyramid.
+  for (int i = 0; i < kPyramidLevels; i++) {
+    back_projection_.Run((width_ >> (i * kDownsampleFactor)),
+                         (height_ >> (i * kDownsampleFactor)),
+                         (fx_ / (1 << (i * kDownsampleFactor))),
+                         (fy_ / (1 << (i * kDownsampleFactor))),
+                         (cx_ / (1 << (i * kDownsampleFactor))),
+                         (cy_ / (1 << (i * kDownsampleFactor))),
+                         depth_pyramid_[i], vertices_[i], normals_[i]);
+  }
+
+  // Compute the center of mass of the point-cloud.
+  Vertex center = centroid_.Run(width_, height_, vertices_[0]);
+
+  // Register the current frame to the previous frame.
+  if (!initial_frame_) {
+    Matrix4f previous_transformation = transformation_;
+
+    // Create Transformation that aligns the Current Frame
+    // with the Previous Frame based on the centroids
+    Matrix4f frame_transformation;
+    frame_transformation.setIdentity();
+
+    frame_transformation(0, 3) = previous_center_.x - center.x;
+    frame_transformation(1, 3) = previous_center_.y - center.y;
+    frame_transformation(2, 3) = previous_center_.z - center.z;
+
+    // Approximate the current frame's global transformation.
+    transformation_ = transformation_ * frame_transformation;
+
+    // Perform ICP.
+    for (int i = kPyramidLevels - 1; i >= 0; i--) {
+      if (icp_.Run(kICPIterations[i],
+                   kMinCorrespondences[i + 1], kMinCorrespondences[i],
+                   kDistanceThreshold[i + 1], kDistanceThreshold[i],
+                   kNormalThreshold[i + 1], kNormalThreshold[i],
+                   kMaxRotation, kMaxTranslation,
+                   fx_, fy_, cx_, cy_,
+                   (width_ >> (i * kDownsampleFactor)),
+                   (height_ >> (i * kDownsampleFactor)),
+                   width_, height_, vertices_[i], normals_[i],
+                   model_vertices_, model_normals_,
+                   previous_transformation, transformation_)) {
+        printf("Unable to register depth image\n");
+        transformation_ = previous_transformation;
+
+        if (failed_frames_ >= kMaxFailedFrames) {
+          transformation_.setIdentity();
+
+          ray_casting_.Run(kMaxDistance, kMaxTruncation, kVolumeSize,
+                           kVolumeDimension, kVoxelDimension, min_weight_,
+                           width_, height_, fx_, fy_, cx_, cy_, volume_center_,
+                           transformation_, volume_, model_vertices_,
+                           model_normals_, normal_map_);
+
+          Download(normal_map, normal_map_, sizeof(Color) * width_ * height_);
+          previous_center_ = volume_center_;
+        }
+
+        failed_frames_++;
+        return -1;
+      }
+    }
+  }
+  else {
+    // Set the center of the volume to the
+    // center of mass of the initial frame.
+    volume_center_ = center;
+  }
+/*
+  failed_frames_ = 0;
+
+  // Integrate the segmented depth image into the volumetric model.
+  bilateral_filter_.Run(kIntegrationBilateralFilterSigmaD,
+                        kIntegrationBilateralFilterSigmaR,
+                        width_, height_, filtered_depth_, denoised_depth_);
+
+  volumetric_.Run(kVolumeSize, kVolumeDimension, kVoxelDimension,
+                  kMaxTruncation, kMaxWeight, width_,  height_,
+                  fx_, fy_, cx_, cy_, volume_center_, transformation_.inverse(),
+                  denoised_depth_, normals_[0], volume_);
+
+  min_weight_ = MIN(min_weight_ + kMinWeightPerFrame / kMaxWeight,
+                    kMaxMinWeight / kMaxWeight);
+
+  // Render the volume using ray casting. Update the model point-cloud
+  // for the next frame's registration step. Generate the normal map of
+  // the model to display the current state of the model to the user.
+  ray_casting_.Run(kMaxDistance, kMaxTruncation, kVolumeSize, kVolumeDimension,
+                   kVoxelDimension, min_weight_, width_, height_,
+                   fx_, fy_, cx_, cy_, volume_center_, transformation_,
+                   volume_, model_vertices_, model_normals_, normal_map_);
+
+  // Download the normal map from the GPU to the CPU.
+  if (normal_map != NULL)
+    Download(normal_map, normal_map_, sizeof(Color) * width_ * height_);
+*/
+  if (transform != NULL)
+    *transform = transformation_;
+
+  // Update Model Center
+  previous_center_ = center;
+
+  initial_frame_ = false;
+  return 0;
+}
+
 } // namespace dip

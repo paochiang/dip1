@@ -327,6 +327,7 @@ loop:
   Color *color = new Color[color_width * color_height];
   Color *colorized_depth = new Color[depth_width * depth_height];
   Color *normals = new Color[depth_width * depth_height];
+  Depth *depthfirst = new Depth[depth_width * depth_height];
 #endif
   /*GLFW part*/
   //// Initialize GLFW
@@ -510,6 +511,7 @@ loop:
 	  int rrr = modeling->Run(depth, normals, &transform);
 	  global_to_camera = transform.inverse();
 #ifdef RUNMODEL
+	  //first frame
 	  if (!flag && (rrr == 0)) {
 		  std::cout << "mark first frame images" << std::endl;
 		  //color_img.copyTo(firtFrameColor);
@@ -518,6 +520,12 @@ loop:
 		  compression_params.push_back(0);    // ÎÞÑ¹Ëõpng.
 		  cv::imwrite("./color0.png", color_img, compression_params);
 		  cv::imwrite("./depth_raw0.png", depth_img_16U, compression_params);
+		  for (int y = 0; y < depth_height; y++)
+			  for (int x = 0; x < depth_width; x++)
+			  {
+				  int index = y * depth_width + x;
+				  depthfirst[index] = depth_img_16U.at<unsigned short>(y, x);
+			  }
 #ifdef REALSENSE
 		  cv::imwrite("./color_align_depth0.png", color_align_depth_img, compression_params);
 		  cv::imwrite("./color_align_depth_undistortion0.png", color_align_depth_undistortion_img, compression_params);
@@ -600,8 +608,8 @@ loop:
 	  }
 	  cv::imshow("model", normal_out);
 	  cv::moveWindow("model", 600 + depth_width + 10, 60);
-	  int res = cv::waitKey(1);
-	if (res == 32) {
+	  char res = cv::waitKey(1);
+	if (res == ' ') {
 		OBJFile obj_file(argv[1], CREATE_OBJ);
 		if (obj_file.enabled()) {
 			Mesh mesh;
@@ -714,9 +722,22 @@ loop:
   if (obj_file.enabled()) {
     Mesh mesh;
     modeling->Model(&mesh);
-
     obj_file.Write(&mesh);
   }
+  //// Update first frame pose
+  Eigen::Matrix4f transform, global_to_camera;
+  int rrr = modeling->RunICPForInitialFrame(depthfirst, normals, &transform);
+  global_to_camera = transform.inverse();
+  ofs.open(parameterFileName, ios::app);
+  if (ofs.is_open()) {
+	  ofs << "mesh to depth0 transform(use icp compute):" << endl;
+	  ofs << global_to_camera(0, 0) << " " << global_to_camera(0, 1) << " " << global_to_camera(0, 2) << " " << global_to_camera(0, 3) << endl;
+	  ofs << global_to_camera(1, 0) << " " << global_to_camera(1, 1) << " " << global_to_camera(1, 2) << " " << global_to_camera(1, 3) << endl;
+	  ofs << global_to_camera(2, 0) << " " << global_to_camera(2, 1) << " " << global_to_camera(2, 2) << " " << global_to_camera(2, 3) << endl;
+	  ofs << global_to_camera(3, 0) << " " << global_to_camera(3, 1) << " " << global_to_camera(3, 2) << " " << global_to_camera(3, 3) << endl;
+	  ofs.close();
+  }
+
  // delete camera;
   delete modeling;
   delete [] depth;

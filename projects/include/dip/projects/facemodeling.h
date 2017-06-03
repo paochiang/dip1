@@ -218,6 +218,8 @@ public:
   //  mesh - Pointer to mesh data structure. Marching cubes will add the model's
   //         vertices, faces, and edges to data structure.
   void Model(Mesh *mesh);
+  int RunICPForInitialFrame(const Depth *depth, Color *normal_map,
+	  Eigen::Matrix4f *transform);
 
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 private:
