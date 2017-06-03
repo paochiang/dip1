@@ -63,6 +63,15 @@ bool KinectCollection::start()
 		is_collction_ = true;
 	}
 	//while (!checkCoordinateChange());
+	CameraIntrinsics intrinsics = {};
+	coordinate_mapper_->GetDepthCameraIntrinsics(&intrinsics);
+	fx_ = intrinsics.FocalLengthX;
+	fy_ = intrinsics.FocalLengthY;
+	cx_ = intrinsics.PrincipalPointX;
+	cy_ = intrinsics.PrincipalPointY;
+	disFourth_ = intrinsics.RadialDistortionFourthOrder;
+	disSecond_ = intrinsics.RadialDistortionSecondOrder;
+	disSixth_ = intrinsics.RadialDistortionSixthOrder;
 	return true;
 }
 
@@ -80,7 +89,8 @@ void KinectCollection::update()
 		updateMap();
 		mapColorToDepth();
 	}
-	//clock_t s1, s2;
+
+	////clock_t s1, s2;
 	//if (is_collction_ )
 	//{
 	//	IDepthFrameReference* m_pDepthFrameReference = NULL;
@@ -98,18 +108,18 @@ void KinectCollection::update()
 	//			hr = pMultiFrame->get_DepthFrameReference(&m_pDepthFrameReference);
 	//		if (SUCCEEDED(hr))
 	//			hr = m_pDepthFrameReference->AcquireFrame(&pDepthFrame);
-	//		//acquire color image
-	//		color_mat_ = cv::Mat::zeros(color_height_, color_width_, CV_8UC4);
-	//		int nBufferSize = color_width_ * color_height_ * 4;
-	//		hr = pColorFrame->CopyConvertedFrameDataToArray(nBufferSize, reinterpret_cast<BYTE*>(color_mat_.data), ColorImageFormat_Bgra);
-	//		cv::imwrite("./colorori.png", color_mat_);
+	//		if (SUCCEEDED(hr)) {
+	//			//acquire color image
+	//			color_mat_ = cv::Mat::zeros(color_height_, color_width_, CV_8UC4);
+	//			int nBufferSize = color_width_ * color_height_ * 4;
+	//			hr = pColorFrame->CopyConvertedFrameDataToArray(nBufferSize, reinterpret_cast<BYTE*>(color_mat_.data), ColorImageFormat_Bgra);
+	//		}	
 	//		//update depth image
 	//		if (SUCCEEDED(hr))
 	//		{
 	//			//hr = pDepthFrame->AccessUnderlyingBuffer(&nDepthBufferSize, &pBuffer); 
 	//			depth_mat_ = cv::Mat::zeros(depth_height_, depth_width_, CV_16UC1);
 	//			hr = pDepthFrame->CopyFrameDataToArray(depth_height_ * depth_width_, reinterpret_cast<UINT16*>(depth_mat_.data));
-	//			cv::imwrite("./depthori.png", depth_mat_);
 	//		}
 	//		if (SUCCEEDED(hr)) {
 	//			updateMap();
@@ -144,17 +154,14 @@ bool KinectCollection::initSensor()
 		{
 			hr = kinect_sensor_->get_ColorFrameSource(&pColorFrameSource);
 		}
-
 		if (SUCCEEDED(hr))
 		{
 			hr = pColorFrameSource->OpenReader(&color_frame_reader_);
 		}
-
 		if (SUCCEEDED(hr))
 		{
 			hr = kinect_sensor_->get_DepthFrameSource(&pDepthFrameSource);
 		}
-
 		if (SUCCEEDED(hr))
 		{
 			hr = pDepthFrameSource->OpenReader(&depth_frame_reader_);
@@ -174,7 +181,7 @@ bool KinectCollection::initSensor()
 		return false;
 	}
 
-	////uninitSensor();
+	//uninitSensor();
  //   HRESULT hr;
  //   hr = GetDefaultKinectSensor(&kinect_sensor_);
  //   if (FAILED(hr))
@@ -189,8 +196,8 @@ bool KinectCollection::initSensor()
 	//	}
 	//	if (SUCCEEDED(hr))
 	//		hr = kinect_sensor_->get_CoordinateMapper(&coordinate_mapper_);
-	//	//if (SUCCEEDED(hr))
-	//	//	hr = coordinate_mapper_->SubscribeCoordinateMappingChanged(&m_coordinateMappingChangedEvent);
+	//	if (SUCCEEDED(hr))
+	//		hr = coordinate_mapper_->SubscribeCoordinateMappingChanged(&m_coordinateMappingChangedEvent);
 	//}
  //   if (!kinect_sensor_ || FAILED(hr))
  //   {
@@ -309,7 +316,7 @@ void KinectCollection::mapColorToDepth()
 		DepthSpacePoint* dsp = new DepthSpacePoint[color_height_ * color_width_];
 		HRESULT hr = coordinate_mapper_->MapColorFrameToDepthSpace(depth_height_ * depth_width_, reinterpret_cast<UINT16*>(depth_mat_.data), color_height_ * color_width_, dsp);
 		if (SUCCEEDED(hr)) {
-			colorToDepthMap_mat_ = cv::Mat(color_height_, color_width_, CV_16SC3, cv::Scalar::all(-1));
+			colorToDepthMap_mat_ = cv::Mat(color_height_, color_width_, CV_16SC2, cv::Scalar::all(-1));
 			for (int y = 0; y < color_height_; y++)
 				for (int x = 0; x < color_width_; x++) {
 					int index = y * color_width_ + x;
@@ -322,11 +329,11 @@ void KinectCollection::mapColorToDepth()
 						int depthY = static_cast<int>(p.Y + 0.5f);
 						if ((depthX >= 0 && depthX < depth_width_) && (depthY >= 0 && depthY < depth_height_))
 						{
-							colorToDepthMap_mat_.at<cv::Vec3s>(y, x) = cv::Vec3s(depthY, depthX, 0);
+							colorToDepthMap_mat_.at<cv::Vec2s>(y, x) = cv::Vec2s(depthY, depthX);
 						}
 					}
 					else {
-						colorToDepthMap_mat_.at<cv::Vec3s>(y, x) = cv::Vec3s(-1, -1, -1);
+						colorToDepthMap_mat_.at<cv::Vec2s>(y, x) = cv::Vec2s(-1, -1);
 					}
 				}			
 		}

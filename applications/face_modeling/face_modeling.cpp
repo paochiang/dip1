@@ -272,17 +272,7 @@ loop:
   Color *normals = new Color[depth_width * depth_height];
 #endif
 #ifdef KINECT2
-  FaceModeling *modeling = new FaceModeling(
-	  depth_width, depth_height,
-	  368.114, 368.114,
-	  255.5, 211.5);
-  //depth_width/(color_width / color_intri.fx), depth_height/(color_height / color_intri.fy),
-  //depth_width/2, depth_height/2);
-  // Initialize Buffers
-  Depth *depth = new Depth[depth_width * depth_height];
-  Color *color = new Color[color_width * color_height];
-  Color *colorized_depth = new Color[depth_width * depth_height];
-  Color *normals = new Color[depth_width * depth_height];
+ 
 #ifdef LIBFREE
   libfreenect2::Freenect2Device::ColorCameraParams color_intri = libfree.getColorCameraParams();
   string parameterFileName = "./parameter.txt";
@@ -317,13 +307,26 @@ loop:
   ofs.open(parameterFileName);
   if (ofs.is_open()) {
 	  ofs << "depth camera parameter:" << endl;
-	  ofs << "fx: " << 368.114 << endl;
-	  ofs << "fy: " << 368.114 << endl;
-	  ofs << "px: " << 255.5 << endl;
-	  ofs << "py: " << 211.5 << endl;
+	  ofs << "fx: " << 368.114 << endl;//kc.fx() << endl;
+	  ofs << "fy: " << 368.114 << endl;// kc.fy() << endl;
+	  ofs << "px: " << 258.342 << endl;// kc.cx() << endl;
+	  ofs << "py: " << 203.319 << endl;// kc.cy() << endl;
 	  ofs.close();
   }
 #endif
+  FaceModeling *modeling = new FaceModeling(
+	  depth_width, depth_height,
+	  //kc.fx(), kc.fy(),
+	  //kc.cx(), kc.cy());
+	  368.114, 368.114,
+	  258.342, 203.319);
+  //depth_width/(color_width / color_intri.fx), depth_height/(color_height / color_intri.fy),
+  //depth_width/2, depth_height/2);
+  // Initialize Buffers
+  Depth *depth = new Depth[depth_width * depth_height];
+  Color *color = new Color[color_width * color_height];
+  Color *colorized_depth = new Color[depth_width * depth_height];
+  Color *normals = new Color[depth_width * depth_height];
 #endif
   /*GLFW part*/
   //// Initialize GLFW
@@ -369,13 +372,7 @@ loop:
  clock_t start, end;
  start = clock();
   while (1) {							//while (!glfwWindowShouldClose(window)) {	
-	  //end = clock();
-	  //double dur = (double)(end - start);
-	  //if (dur >= 3000) {
-		 // cout << "seconds:" << static_cast<int>(dur / CLOCKS_PER_SEC) << endl;
-		 // cout << "count:" << count << endl;
-		 // break;
-	  //}
+
 #ifdef KINECT
 	  /*kinect*/
 	 // Update depth image.
@@ -540,7 +537,7 @@ loop:
 #endif
 #ifdef KINECT2
 		  cv::imwrite("./color_align_depth0.png", color_align_depth_img, compression_params);
-		  cv::imwrite("./color_to_depth_map0.png", kc.getColorToDepthMapMat(), compression_params);
+		 // cv::imwrite("./color_to_depth_map0.png", kc.getColorToDepthMapMat(), compression_params);
 		  ofstream ofs;
 		  ofs.open(parameterFileName, ios::app);
 		  if (ofs.is_open()) {
@@ -551,9 +548,9 @@ loop:
 			  ofs << global_to_camera(3, 0) << " " << global_to_camera(3, 1) << " " << global_to_camera(3, 2) << " " << global_to_camera(3, 3) << endl << endl;
 			  ofs.close();
 		  }
-		  //ofs.open("./colordepthmap.txt");
-		  //ofs << kc.getColorToDepthMapMat() << endl;
-		  //ofs.close();
+		  ofs.open("./colordepthmap.txt");
+		  ofs << kc.getColorToDepthMapMat() << endl;
+		  ofs.close();
 #endif
 		  flag = true;
 	  }
@@ -637,7 +634,7 @@ loop:
 #endif
 #ifdef KINECT2
 		cv::imwrite("./color_align_depth" + out + ".png", color_align_depth_img, compression_params);
-		cv::imwrite("./color_to_depth_map" + out + ".png", kc.getColorToDepthMapMat(), compression_params);
+		//cv::imwrite("./color_to_depth_map" + out + ".png", kc.getColorToDepthMapMat(), compression_params);
 		ofstream ofs;
 		ofs.open(parameterFileName, ios::app);
 		if (ofs.is_open()) {
@@ -648,6 +645,9 @@ loop:
 			ofs << global_to_camera(3, 0) << " " << global_to_camera(3, 1) << " " << global_to_camera(3, 2) << " " << global_to_camera(3, 3) << endl;
 			ofs.close();
 		}
+		ofs.open("./colordepthmap" + out + ".txt");
+		ofs << kc.getColorToDepthMapMat() << endl;
+		ofs.close();
 #endif
 		//cv::imwrite("./depth_" + out + ".png", depth_img, compression_params);
 		//std::vector<cv::Point3f> points3d = ImageToSpace(depth_img, focal.x, focal.y, pxy.x, pxy.y);
